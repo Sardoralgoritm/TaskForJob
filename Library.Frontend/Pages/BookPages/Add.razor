@@ -1,0 +1,79 @@
+﻿@page "/books/add"
+
+<MudGrid>
+    <MudItem xs="2"></MudItem>
+    <MudItem xs="8">
+        <MudCard Class="mt-4">
+            <MudCardHeader Class="d-flex justify-center"> <h3>Add new Book</h3> </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="2">
+                    </MudItem>
+                    <MudItem xs="8">
+                        <MudTextField @bind-Value="book.Title" Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"></MudTextField>
+                        <MudTextField @bind-Value="book.Author" Label="Author" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"></MudTextField>
+                        <MudTextField @bind-Value="book.CategoryName" Label="Category name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"></MudTextField>
+                    </MudItem>
+                    <MudItem xs="2">
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+            <MudCardActions Class="d-flex justify-center">
+                <MudButton @onclick="Cancel" Variant="Variant.Filled">Cancel</MudButton>
+                <MudButton @onclick="Save" Class="ms-2" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    @inject NavigationManager navigation
+    @inject HttpClient httpClient
+    @inject ISnackbar Snackbar
+    @inject ILocalStorageService LocalStorage
+    AddBookDTO book = new();
+    private List<string> errors = new();
+
+
+    private void Cancel()
+    {
+        navigation.NavigateTo("/books");
+    }
+
+    private async void Save()
+    {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+        if (string.IsNullOrEmpty(token))
+        {
+            Snackbar.Add("User is not authenticated", Severity.Error);
+            return;
+        }
+
+        var json = JsonConvert.SerializeObject(book);
+        var request = new HttpRequestMessage(HttpMethod.Post, Helper.URL + "book")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Book added successfully!", Severity.Success);
+            Cancel();
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            Snackbar.Add("Informations isn't valid", Severity.Warning);
+            Cancel();
+        }
+        else
+        {
+            Snackbar.Add("Some problem with the server", Severity.Error);
+            Cancel();
+        }
+    }
+}

@@ -1,0 +1,120 @@
+﻿@page "/books/edit/{Id}"
+
+<MudGrid>
+    <MudItem xs="2"></MudItem>
+    <MudItem xs="8">
+        <MudCard Class="mt-4">
+            <MudCardHeader Class="d-flex justify-center"> <h3>Edit this Book</h3> </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="2">
+                    </MudItem>
+                    <MudItem xs="8">
+                        <MudTextField @bind-Value="book.Title" Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"></MudTextField>
+                        <MudTextField @bind-Value="book.Author" Label="Author" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"></MudTextField>
+                        <MudTextField @bind-Value="book.CategoryName" Label="Category name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"></MudTextField>
+                    </MudItem>
+                    <MudItem xs="2">
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+            <MudCardActions Class="d-flex justify-center">
+                <MudButton @onclick="Cancel" Variant="Variant.Filled">Cancel</MudButton>
+                <MudButton @onclick="Save" Class="ms-2" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+    @inject NavigationManager navigation
+    @inject ILocalStorageService LocalStorage
+    @inject HttpClient httpClient
+    @inject ISnackbar Snackbar
+    UpdateBookDTO book = new();
+    private List<string> errors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+        if (string.IsNullOrEmpty(token))
+        {
+            navigation.NavigateTo("/login");
+            return;
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Get, Helper.URL + "book/" + Id);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            navigation.NavigateTo("/login");
+        }
+        else if (response.IsSuccessStatusCode)
+        {
+            var bookDto = await response.Content.ReadFromJsonAsync<BookDTO>();
+            book = new()
+                {
+                    Id = bookDto.Id,
+                    Title = bookDto.Title,
+                    Author = bookDto.Author,
+                    CategoryName = bookDto.CategoryName
+                };
+        }
+    }
+
+
+    private void Cancel()
+    {
+        navigation.NavigateTo("/books");
+    }
+
+    private async void Save()
+    {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+        if (string.IsNullOrEmpty(token))
+        {
+            navigation.NavigateTo("/login");
+            return;
+        }
+
+        var json = JsonConvert.SerializeObject(book);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, Helper.URL + "book");
+        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            navigation.NavigateTo("/login");
+        }
+        else if (response.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Book updated successfully!", Severity.Success);
+            Cancel();
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            Snackbar.Add("Book not found. Please try again!", Severity.Warning);
+            Cancel();
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            Snackbar.Add("Informations isn't valid", Severity.Warning);
+            Cancel();
+        }
+        else
+        {
+            Snackbar.Add("Some problem with the server", Severity.Error);
+            Cancel();
+        }
+    }
+}

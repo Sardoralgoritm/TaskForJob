@@ -1,0 +1,139 @@
+﻿@page "/books"
+
+<MudTable Items="@Elements" Dense="true" Hover="true" Bordered="true" Striped="true" Filter="new Func<BookDTO,bool>(FilterFunc1)" @bind-SelectedItem="selectedItem1">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Books</MudText>
+        <MudSpacer />
+        <MudTextField @bind-Value="searchString1" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        <MudSpacer />
+        <MudButton OnClick="AddPage" StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Color="Color.Success">Create</MudButton>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>Id</MudTh>
+        <MudTh>Title</MudTh>
+        <MudTh>Author</MudTh>
+        <MudTh>Category name</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd @onclick="() => OpenView(context.Id)" DataLabel="Id">@context.Id</MudTd>
+        <MudTd @onclick="() => OpenView(context.Id)" DataLabel="Title">@context.Title</MudTd>
+        <MudTd @onclick="() => OpenView(context.Id)" DataLabel="Author">@context.Author</MudTd>
+        <MudTd @onclick="() => OpenView(context.Id)" DataLabel="Category name">@context.CategoryName</MudTd>
+        <MudTd @onclick="() => OpenView(context.Id)" DataLabel="Action" style="display: flex; justify-content:center; gap: 10px">
+            <MudIconButton @onclick="() => OpenEditPage(context.Id)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium" />
+            <MudIconButton @onclick="() => Delete(context.Id)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="Color.Error" Size="Size.Medium" />
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>
+
+@code {
+    @inject HttpClient httpClient
+    private string searchString1 = "";
+    @inject ILocalStorageService LocalStorage
+    private BookDTO selectedItem1 = null;
+    @inject NavigationManager navigate
+    @inject IDialogService DialogService
+    @inject ISnackbar Snackbar
+
+    private List<BookDTO> Elements = new List<BookDTO>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+        if (string.IsNullOrEmpty(token))
+        {
+            navigate.NavigateTo("/login");
+            return;
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Get, Helper.URL + "book");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            navigate.NavigateTo("/login");
+        }
+        else if (response.IsSuccessStatusCode)
+        {
+            Elements = await response.Content.ReadFromJsonAsync<List<BookDTO>>();
+        }
+    }
+
+    private bool FilterFunc1(BookDTO element) => FilterFunc(element, searchString1);
+
+    private bool FilterFunc(BookDTO element, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (element.Title.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (element.Author.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (element.CategoryName.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    private void AddPage()
+    {
+        navigate.NavigateTo("books/add");
+    }
+    private void OpenView(string id)
+    {
+        var parameters = new DialogParameters<View>();
+        parameters.Add(x => x.Id, id.ToString());
+        var options = new DialogOptions() { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+        DialogService.Show<View>("Book details", parameters, options);
+    }
+
+    private void OpenEditPage(string id)
+    {
+        navigate.NavigateTo($"books/edit/{id}");
+    }
+
+    private async void Delete(string id)
+    {
+        var options = new DialogOptions { ClassBackground = "body" };
+        var dialogResult = await DialogService.Show<YesNo>("Delete", options).Result;
+
+        if (!dialogResult.Cancelled)
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                navigate.NavigateTo("/login");
+                return;
+            }
+
+            var request = new HttpRequestMessage(HttpMethod.Delete, Helper.URL + "book/" + id);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await httpClient.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Book successfully deleted!", Severity.Success);
+                Elements.RemoveAll(i => i.Id == id);
+                StateHasChanged();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Snackbar.Add("Book not found!", Severity.Warning);
+                navigate.NavigateTo("/books");
+            }
+            else
+            {
+                Snackbar.Add("Some problem with the server", Severity.Error);
+                navigate.NavigateTo("/books");
+            }
+        }
+    }
+}

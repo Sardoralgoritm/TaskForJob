@@ -1,0 +1,54 @@
+﻿@page "/login"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject ISnackbar Snackbar
+
+<div class="login-wrapper">
+    <div class="login-container">
+        <h2 class="login-title">Login</h2>
+        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin" class="login-form">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="login-input-wrapper">
+                <div>
+                    <label class="login-label">Foydalanuvchi emaili:</label>
+                    <InputText @bind-Value="loginModel.Email" class="login-input" />
+                </div>
+                <div>
+                    <label class="login-label">Parol:</label>
+                    <InputText @bind-Value="loginModel.Password" type="password" class="login-input" />
+                </div>
+            </div>
+            <button type="submit" class="login-button">Kirish</button>
+            <div>
+                <a href="/register" class="register-link">Register</a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+
+    private async Task HandleLogin()
+    {
+        var response = await Http.PostAsJsonAsync(Helper.URL + "auth/login", loginModel);
+        if (response.IsSuccessStatusCode)
+        {
+            var token = await response.Content.ReadFromJsonAsync<TokenModel>();
+            await LocalStorage.SetItemAsync("authToken", token.Token);
+            Navigation.NavigateTo("/books");
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            Snackbar.Add("Informations isn't valid", Severity.Warning);
+            Navigation.NavigateTo("/login");
+        }
+        else
+        {
+            Snackbar.Add("Some problem with the server", Severity.Error);
+            Navigation.NavigateTo("/login");
+        }
+    }
+}

@@ -1,0 +1,42 @@
+﻿@using MudBlazor
+@using Microsoft.AspNetCore.Components.Authorization
+@inherits LayoutComponentBase
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<CascadingAuthenticationState>
+    <div class="page">
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+
+        <main>
+            <div class="top-row px-4">
+                <AuthorizeView>
+                    <Authorized>
+                        <button @onclick="Logout">Logout</button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <NavLink class="nav-link" href="/logout">Logout</NavLink>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    </div>
+</CascadingAuthenticationState>
+
+@code {
+    private async Task Logout()
+    {
+        var authStateProvider = (AuthService)AuthenticationStateProvider;
+        await authStateProvider.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/login");
+    }
+}
