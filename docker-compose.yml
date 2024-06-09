@@ -1,0 +1,20 @@
+version: '3.4'
+
+services:
+  library.backend:
+    image: ${DOCKER_REGISTRY-}librarybackend
+    build:
+      context: .
+      dockerfile: Library.Backend/Dockerfile
+    ports:
+      - "5500:5500"
+      - "5501:5501"
+  postgres:
+    image: "postgres:latest"
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: "libraryDB"
+    ports:
+      - "5432:5432"
+
